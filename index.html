@@ -44,9 +44,19 @@
   .btn-primary:hover { opacity: 0.88; }
   .social-btn { display:flex; align-items:center; justify-content:center; gap:10px; font-weight:600 }
   .social-btn.google { background: #DB4437; }
-  .social-btn.github { background: #24292e; }
   .social-btn svg { width:18px;height:18px;display:block }
   .login-hint { font-size: 12px; color: var(--text-3); margin-top: 16px; }
+  .availability-hint { font-size: 12px; color: var(--text-3); margin-bottom: 10px; line-height: 1.4; }
+  .availability-summary { display:flex; flex-wrap:wrap; gap:8px; margin-bottom: 12px; }
+  .availability-pill { display:inline-flex; align-items:center; gap:6px; padding:6px 9px; border-radius:999px; font-size: 12px; background: var(--bg); border: 0.5px solid var(--border); color: var(--text-2); }
+  .availability-pill.voy { background: var(--purple-light); color: var(--purple-dark); border-color: var(--purple-mid); }
+  .availability-pill.no { background: var(--red-light); color: var(--red); border-color: #F09595; }
+  .availability-pill.quizas { background: var(--amber-light); color: var(--amber); border-color: #FAC775; }
+  .cal-day.has-user-state { outline: 1px solid var(--purple-mid); }
+  .cal-day.has-user-state.voy { background: var(--purple-light); }
+  .cal-day.has-user-state.no { background: var(--red-light); }
+  .cal-day.has-user-state.quizas { background: var(--amber-light); }
+  .cal-day-user-state { font-size: 10px; font-weight: 700; margin-top: 4px; display: inline-flex; align-items: center; gap: 3px; }
 
   /* APP SHELL */
   #app { display: none; flex-direction: column; min-height: 100vh; }
@@ -197,10 +207,6 @@
     <p class="login-sub">El calendario de tu cuadrilla</p>
     <input type="text" id="login-input" placeholder="Tu nombre (ej: Carlos)" maxlength="20" autocomplete="off">
     <button class="btn-primary" onclick="entrar()">Entrar</button>
-    <button class="btn-primary social-btn github" style="margin-top:8px" onclick="githubLogin()">
-      <svg viewBox="0 0 24 24" fill="white" aria-hidden="true"><path d="M12 .5C5.73.5.5 5.73.5 12c0 5.08 3.29 9.39 7.86 10.9.58.11.79-.25.79-.56 0-.28-.01-1.02-.02-2-3.2.7-3.88-1.54-3.88-1.54-.53-1.36-1.3-1.72-1.3-1.72-1.06-.73.08-.72.08-.72 1.17.08 1.78 1.2 1.78 1.2 1.04 1.78 2.72 1.27 3.38.97.11-.76.41-1.27.75-1.56-2.55-.29-5.23-1.28-5.23-5.69 0-1.26.45-2.3 1.2-3.11-.12-.3-.52-1.52.11-3.17 0 0 .98-.31 3.2 1.19a11.1 11.1 0 0 1 2.92-.39c.99 0 1.99.13 2.92.39 2.22-1.5 3.2-1.19 3.2-1.19.63 1.65.23 2.87.11 3.17.75.8 1.2 1.84 1.2 3.11 0 4.42-2.69 5.39-5.25 5.67.42.36.8 1.08.8 2.18 0 1.57-.01 2.83-.01 3.22 0 .31.21.68.8.56A11.52 11.52 0 0 0 23.5 12C23.5 5.73 18.27.5 12 .5z"/></svg>
-      Entrar con GitHub
-    </button>
     <button class="btn-primary social-btn google" style="margin-top:8px" onclick="googleLogin()">
       <svg viewBox="0 0 533.5 544.3" aria-hidden="true"><path fill="#4285F4" d="M533.5 278.4c0-17.4-1.6-34.1-4.7-50.3H272v95.2h147.1c-6.3 34.1-25.2 62.9-53.8 82v67h86.9c50.7-46.8 79.3-115.7 79.3-193.9z"/><path fill="#34A853" d="M272 544.3c72.6 0 133.6-24.1 178.1-65.6l-86.9-67c-24.2 16.2-55 25.8-91.2 25.8-69.9 0-129.3-47.2-150.5-110.6H28.6v69.6C72.6 486.8 167.6 544.3 272 544.3z"/><path fill="#FBBC05" d="M121.5 327.9c-10.8-32.3-10.8-67 0-99.3V159c-46.3 0-88.3 24.8-112.9 62.5l-73.9 57.2C14.4 391 65.8 478 121.5 327.9z"/><path fill="#EA4335" d="M272 109.1c38.6 0 73.3 13.3 100.7 39.4l75.4-74.4C405.9 24.2 345.6 0 272 0 167.6 0 72.6 57.5 28.6 159l92.1 69.5C142.7 156.3 202.1 109.1 272 109.1z"/></svg>
       Entrar con Google
@@ -249,6 +255,8 @@
         <span class="cal-month-label" id="cal-label"></span>
         <button class="cal-nav-btn" onclick="cambiarMes(1)">›</button>
       </div>
+      <div class="availability-hint">Pulsa un día para marcar tu disponibilidad: voy, no o quizás. Se guarda para el grupo.</div>
+      <div class="availability-summary" id="availability-summary"></div>
       <div class="cal-grid" id="cal-grid"></div>
     </div>
   </div>
@@ -334,6 +342,7 @@ let todosLosPlanes = [];
 let todosLosVotos = [];
 let todosLosUsuarios = [];
 let todosLosComentarios = [];
+let todosLosDisponibilidades = [];
 let calMes = new Date().getMonth();
 let calAnyo = new Date().getFullYear();
 
@@ -342,6 +351,7 @@ todosLosPlanes = state.planes;
 todosLosVotos = state.votos;
 todosLosUsuarios = state.usuarios;
 todosLosComentarios = state.comentarios;
+todosLosDisponibilidades = state.disponibilidades;
 
 const COLORES = ['#534AB7','#0F6E56','#854F0B','#993C1D','#993556','#185FA5','#639922','#BA7517'];
 
@@ -352,16 +362,17 @@ function headers() {
 function loadStoredState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { usuarios: [], planes: [], votos: [], comentarios: [] };
+    if (!raw) return { usuarios: [], planes: [], votos: [], comentarios: [], disponibilidades: [] };
     const parsed = JSON.parse(raw);
     return {
       usuarios: Array.isArray(parsed.usuarios) ? parsed.usuarios : [],
       planes: Array.isArray(parsed.planes) ? parsed.planes : [],
       votos: Array.isArray(parsed.votos) ? parsed.votos : [],
-      comentarios: Array.isArray(parsed.comentarios) ? parsed.comentarios : []
+      comentarios: Array.isArray(parsed.comentarios) ? parsed.comentarios : [],
+      disponibilidades: Array.isArray(parsed.disponibilidades) ? parsed.disponibilidades : []
     };
   } catch {
-    return { usuarios: [], planes: [], votos: [], comentarios: [] };
+    return { usuarios: [], planes: [], votos: [], comentarios: [], disponibilidades: [] };
   }
 }
 
@@ -370,6 +381,7 @@ function saveStoredState() {
   state.planes = todosLosPlanes;
   state.votos = todosLosVotos;
   state.comentarios = todosLosComentarios;
+  state.disponibilidades = todosLosDisponibilidades;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
@@ -380,6 +392,19 @@ function nextId(list) {
 
 function getUserById(id) {
   return todosLosUsuarios.find(u => String(u.id) === String(id));
+}
+
+function getDisponibilidadPorFecha(fechaStr) {
+  return todosLosDisponibilidades.filter(item => item.fecha === fechaStr);
+}
+
+function getMiDisponibilidadParaFecha(fechaStr) {
+  if (!usuario) return null;
+  return todosLosDisponibilidades.find(item => item.fecha === fechaStr && String(item.usuario_id) === String(usuario.id));
+}
+
+function getEstadoLabel(estado) {
+  return { voy: 'Voy', no: 'No', quizas: 'Quizás' }[estado] || '';
 }
 
 function createLocalUser(nombre, avatarColor) {
@@ -582,12 +607,17 @@ async function iniciarApp() {
 
 async function cargarTodo() {
   try {
+    const disponibilidadRemota = await sb('GET', 'disponibilidades', null, '?select=*&order=fecha.asc').catch(() => null);
     [todosLosPlanes, todosLosVotos, todosLosUsuarios, todosLosComentarios] = await Promise.all([
       sb('GET', 'planes', null, '?select=*,usuarios(nombre)&order=fecha_inicio.asc'),
       sb('GET', 'votos', null, '?select=*,usuarios(nombre)'),
       sb('GET', 'usuarios', null, '?select=*&order=created_at.asc'),
       sb('GET', 'comentarios', null, '?select=*,usuarios(nombre)&order=created_at.asc')
     ]);
+    todosLosDisponibilidades = Array.isArray(disponibilidadRemota) && disponibilidadRemota.length
+      ? disponibilidadRemota
+      : (state.disponibilidades || []);
+    saveStoredState();
     renderPlanes();
     renderCalendario();
     renderStats();
@@ -845,9 +875,49 @@ function cambiarMes(d) {
   renderCalendario();
 }
 
+async function marcarDia(fechaStr) {
+  if (!usuario) { toast('Entra con tu nombre primero'); return; }
+
+  const actual = getMiDisponibilidadParaFecha(fechaStr);
+  const siguiente = actual?.estado === 'voy' ? 'no' : actual?.estado === 'no' ? 'quizas' : actual?.estado === 'quizas' ? null : 'voy';
+
+  if (siguiente === null) {
+    todosLosDisponibilidades = todosLosDisponibilidades.filter(item => !(item.fecha === fechaStr && String(item.usuario_id) === String(usuario.id)));
+  } else if (actual) {
+    actual.estado = siguiente;
+  } else {
+    todosLosDisponibilidades.push({ id: nextId(todosLosDisponibilidades), fecha: fechaStr, usuario_id: usuario.id, estado: siguiente, created_at: new Date().toISOString() });
+  }
+  saveStoredState();
+
+  try {
+    if (siguiente === null) {
+      if (actual?.id) await sb('DELETE', 'disponibilidades', null, `?id=eq.${actual.id}`).catch(() => {});
+    } else if (actual?.id) {
+      await sb('PATCH', 'disponibilidades', { estado: siguiente }, `?id=eq.${actual.id}`).catch(() => {});
+    } else {
+      await sb('POST', 'disponibilidades', { fecha: fechaStr, usuario_id: usuario.id, estado: siguiente }).catch(() => {});
+    }
+  } catch (e) {
+    console.warn('No se pudo sincronizar disponibilidad', e);
+  }
+
+  renderCalendario();
+  toast(siguiente ? `Marcado como ${getEstadoLabel(siguiente)}` : 'Disponibilidad borrada');
+}
+
 function renderCalendario() {
   const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   document.getElementById('cal-label').textContent = `${meses[calMes]} ${calAnyo}`;
+
+  const voyTotal = todosLosDisponibilidades.filter(item => item.estado === 'voy').length;
+  const noTotal = todosLosDisponibilidades.filter(item => item.estado === 'no').length;
+  const quizasTotal = todosLosDisponibilidades.filter(item => item.estado === 'quizas').length;
+  document.getElementById('availability-summary').innerHTML = `
+    <span class="availability-pill voy">✓ ${voyTotal} van</span>
+    <span class="availability-pill no">✗ ${noTotal} no</span>
+    <span class="availability-pill quizas">? ${quizasTotal} quizás</span>
+  `;
 
   const primero = new Date(calAnyo, calMes, 1);
   const ultimo = new Date(calAnyo, calMes + 1, 0);
@@ -868,6 +938,7 @@ function renderCalendario() {
     const fecha = new Date(calAnyo, calMes, d);
     const fechaStr = fecha.toISOString().split('T')[0];
     const esHoy = fecha.getTime() === hoy.getTime();
+    const miEstado = getMiDisponibilidadParaFecha(fechaStr)?.estado;
 
     const planesDelDia = todosLosPlanes.filter(p => {
       const ini = p.fecha_inicio;
@@ -875,12 +946,24 @@ function renderCalendario() {
       return fechaStr >= ini && fechaStr <= fin;
     });
 
+    const disponibilidadesDelDia = getDisponibilidadPorFecha(fechaStr);
+    const voy = disponibilidadesDelDia.filter(item => item.estado === 'voy').length;
+    const no = disponibilidadesDelDia.filter(item => item.estado === 'no').length;
+    const quizas = disponibilidadesDelDia.filter(item => item.estado === 'quizas').length;
+
     let dotsHtml = planesDelDia.slice(0,2).map(p =>
       `<div class="cal-dot ${p.estado}">${escHtml(p.titulo.slice(0,12))}</div>`
     ).join('');
     if (planesDelDia.length > 2) dotsHtml += `<div class="cal-dot">+${planesDelDia.length-2} más</div>`;
 
-    html += `<div class="cal-day${esHoy?' today':''}"><div class="cal-day-num">${d}</div>${dotsHtml}</div>`;
+    const availabilityDots = [];
+    if (voy) availabilityDots.push(`<div class="cal-dot confirmado">✓${voy}</div>`);
+    if (no) availabilityDots.push(`<div class="cal-dot pasado">✗${no}</div>`);
+    if (quizas) availabilityDots.push(`<div class="cal-dot">?${quizas}</div>`);
+
+    const userBadge = miEstado ? `<div class="cal-day-user-state">${miEstado === 'voy' ? '✓' : miEstado === 'no' ? '✗' : '?'}</div>` : '';
+
+    html += `<div class="cal-day${esHoy?' today':''}${miEstado?` has-user-state ${miEstado}`:''}" onclick="marcarDia('${fechaStr}')"><div class="cal-day-num">${d}</div>${dotsHtml}${availabilityDots.join('')}${userBadge}</div>`;
   }
 
   document.getElementById('cal-grid').innerHTML = html;
@@ -931,7 +1014,7 @@ if (saved) {
 </script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-  import { getAuth, signInWithPopup, GithubAuthProvider, GoogleAuthProvider, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+  import { getAuth, signInWithPopup, GoogleAuthProvider, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyDSxrI7ziNMZrTj_3PXE1DJO5S0CMQGoH0",
@@ -945,16 +1028,7 @@ if (saved) {
 
   const fbApp = initializeApp(firebaseConfig);
   const fbAuth = getAuth(fbApp);
-  const githubProvider = new GithubAuthProvider();
   const googleProvider = new GoogleAuthProvider();
-
-  async function githubLogin() {
-    try {
-      const result = await signInWithPopup(fbAuth, githubProvider);
-      const fbUser = result.user;
-      handleFirebaseUser(fbUser);
-    } catch (e) { toast('Error al entrar con GitHub'); console.error(e); }
-  }
 
   async function googleLogin() {
     try {
@@ -998,7 +1072,6 @@ if (saved) {
 
   onAuthStateChanged(fbAuth, fbUser => { if (fbUser) handleFirebaseUser(fbUser); });
 
-  window.githubLogin = githubLogin;
   window.googleLogin = googleLogin;
   window.emailRegister = emailRegister;
   window.emailLogin = emailLogin;
