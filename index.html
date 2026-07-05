@@ -194,6 +194,15 @@
     <input type="text" id="login-input" placeholder="Tu nombre (ej: Carlos)" maxlength="20" autocomplete="off">
     <button class="btn-primary" onclick="entrar()">Entrar</button>
     <button class="btn-primary" style="margin-top:8px;background:#24292e;" onclick="githubLogin()">Entrar con GitHub</button>
+    <button class="btn-primary" style="margin-top:8px;background:#DB4437;" onclick="googleLogin()">Entrar con Google</button>
+    <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;text-align:left">
+      <input type="email" id="login-email" placeholder="Correo electrónico" autocomplete="username">
+      <input type="password" id="login-pass" placeholder="Contraseña" autocomplete="current-password">
+      <div style="display:flex;gap:8px">
+        <button class="btn-primary" style="flex:1;padding:10px" onclick="emailLogin()">Entrar con correo</button>
+        <button class="btn-secondary" style="flex:1;padding:10px" onclick="emailRegister()">Crear cuenta</button>
+      </div>
+    </div>
     <p class="login-hint">Si ya existe tu nombre, entrarás con tu cuenta. Si es nuevo, se creará.</p>
   </div>
 </div>
@@ -912,7 +921,7 @@ if (saved) {
 </script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-  import { getAuth, signInWithPopup, GithubAuthProvider, signOut as fbSignOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+  import { getAuth, signInWithPopup, GithubAuthProvider, GoogleAuthProvider, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyDSxrI7ziNMZrTj_3PXE1DJO5S0CMQGoH0",
@@ -927,6 +936,7 @@ if (saved) {
   const fbApp = initializeApp(firebaseConfig);
   const fbAuth = getAuth(fbApp);
   const githubProvider = new GithubAuthProvider();
+  const googleProvider = new GoogleAuthProvider();
 
   async function githubLogin() {
     try {
@@ -934,6 +944,33 @@ if (saved) {
       const fbUser = result.user;
       handleFirebaseUser(fbUser);
     } catch (e) { toast('Error al entrar con GitHub'); console.error(e); }
+  }
+
+  async function googleLogin() {
+    try {
+      const result = await signInWithPopup(fbAuth, googleProvider);
+      handleFirebaseUser(result.user);
+    } catch (e) { toast('Error al entrar con Google'); console.error(e); }
+  }
+
+  async function emailRegister() {
+    const email = document.getElementById('login-email')?.value?.trim();
+    const pass = document.getElementById('login-pass')?.value || '';
+    if (!email || !pass) { toast('Escribe email y contraseña'); return; }
+    try {
+      const cred = await createUserWithEmailAndPassword(fbAuth, email, pass);
+      handleFirebaseUser(cred.user);
+    } catch (e) { toast('Error creando cuenta'); console.error(e); }
+  }
+
+  async function emailLogin() {
+    const email = document.getElementById('login-email')?.value?.trim();
+    const pass = document.getElementById('login-pass')?.value || '';
+    if (!email || !pass) { toast('Escribe email y contraseña'); return; }
+    try {
+      const cred = await signInWithEmailAndPassword(fbAuth, email, pass);
+      handleFirebaseUser(cred.user);
+    } catch (e) { toast('Error entrando con correo'); console.error(e); }
   }
 
   function handleFirebaseUser(fbUser) {
@@ -952,7 +989,10 @@ if (saved) {
   onAuthStateChanged(fbAuth, fbUser => { if (fbUser) handleFirebaseUser(fbUser); });
 
   window.githubLogin = githubLogin;
-  window.githubSignOut = async () => { try { await fbSignOut(fbAuth); } catch(e){}; cerrarSesion(); };
+  window.googleLogin = googleLogin;
+  window.emailRegister = emailRegister;
+  window.emailLogin = emailLogin;
+  window.signOutAll = async () => { try { await fbSignOut(fbAuth); } catch(e){}; cerrarSesion(); };
 </script>
 </body>
 </html>
