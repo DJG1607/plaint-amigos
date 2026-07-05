@@ -498,10 +498,21 @@ function toast(msg) {
 }
 
 // LOGIN
-document.getElementById('login-input').addEventListener('keydown', e => { if(e.key==='Enter') entrar(); });
+const loginInput = document.getElementById('login-input');
+if (loginInput) {
+  loginInput.addEventListener('keydown', e => { if(e.key==='Enter') entrar(); });
+}
+
+function guardarUsuarioEnSesion(user) {
+  try {
+    localStorage.setItem('planit_usuario', JSON.stringify(user));
+  } catch (e) {
+    console.warn('No se pudo guardar la sesión', e);
+  }
+}
 
 async function entrar() {
-  const nombre = document.getElementById('login-input').value.trim();
+  const nombre = loginInput ? loginInput.value.trim() : '';
   if (!nombre) { toast('Escribe tu nombre'); return; }
 
   try {
@@ -512,7 +523,7 @@ async function entrar() {
       data = await sb('POST', 'usuarios', { nombre, avatar_color: COLORES[colorIdx(nombre)] });
     }
     usuario = Array.isArray(data) ? data[0] : data;
-    localStorage.setItem('planit_usuario', JSON.stringify(usuario));
+    guardarUsuarioEnSesion(usuario);
     iniciarApp();
   } catch(e) {
     toast('Error al entrar. Inténtalo de nuevo.');
@@ -521,7 +532,11 @@ async function entrar() {
 }
 
 function cerrarSesion() {
-  localStorage.removeItem('planit_usuario');
+  try {
+    localStorage.removeItem('planit_usuario');
+  } catch (e) {
+    console.warn('No se pudo borrar la sesión', e);
+  }
   usuario = null;
   document.getElementById('app').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
