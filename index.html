@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planit — Calendario de amigos</title>
+<style>
+  :root {
+    --purple: #534AB7;
+    --purple-light: #EEEDFE;
+    --purple-mid: #AFA9EC;
+    --purple-dark: #3C3489;
+    --green-light: #E1F5EE;
+    --green: #0F6E56;
+    --amber-light: #FAEEDA;
+    --amber: #854F0B;
+    --coral-light: #FAECE7;
+    --coral: #993C1D;
+    --pink-light: #FBEAF0;
+    --pink: #993556;
+    --red-light: #FCEBEB;
+    --red: #A32D2D;
+    --bg: #F5F4F8;
+    --surface: #FFFFFF;
+    --border: rgba(0,0,0,0.1);
+    --border-strong: rgba(0,0,0,0.18);
+    --text: #1a1a1a;
+    --text-2: #555;
+    --text-3: #888;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* LOGIN */
+  #login-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+  .login-card { background: var(--surface); border-radius: var(--radius); border: 0.5px solid var(--border); padding: 40px 32px; width: 100%; max-width: 360px; text-align: center; }
+  .login-logo { font-size: 28px; font-weight: 700; color: var(--purple); margin-bottom: 6px; }
+  .login-sub { font-size: 14px; color: var(--text-3); margin-bottom: 32px; }
+  .login-card input { width: 100%; padding: 12px 14px; border: 0.5px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 15px; margin-bottom: 12px; outline: none; transition: border-color 0.15s; }
+  .login-card input:focus { border-color: var(--purple); }
+  .btn-primary { width: 100%; padding: 12px; background: var(--purple); color: white; border: none; border-radius: var(--radius-sm); font-size: 15px; font-weight: 500; cursor: pointer; transition: opacity 0.15s; }
+  .btn-primary:hover { opacity: 0.88; }
+  .login-hint { font-size: 12px; color: var(--text-3); margin-top: 16px; }
+
+  /* APP SHELL */
+  #app { display: none; flex-direction: column; min-height: 100vh; }
+  .topbar { background: var(--surface); border-bottom: 0.5px solid var(--border); padding: 0 20px; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+  .logo { font-size: 18px; font-weight: 700; color: var(--purple); }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .user-chip { display: flex; align-items: center; gap: 8px; background: var(--purple-light); border-radius: 20px; padding: 5px 12px 5px 6px; }
+  .user-av { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: white; }
+  .user-name { font-size: 13px; font-weight: 500; color: var(--purple-dark); }
+  .logout-btn { background: none; border: none; color: var(--text-3); font-size: 12px; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+  .logout-btn:hover { background: var(--bg); }
+
+  /* TABS */
+  .tabs { background: var(--surface); border-bottom: 0.5px solid var(--border); display: flex; overflow-x: auto; }
+  .tab { padding: 14px 20px; font-size: 14px; color: var(--text-3); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; display: flex; align-items: center; gap: 6px; transition: color 0.15s; }
+  .tab.active { color: var(--purple); border-bottom-color: var(--purple); font-weight: 500; }
+  .tab:hover:not(.active) { color: var(--text-2); }
+
+  /* VIEWS */
+  .view { display: none; padding: 20px; max-width: 700px; margin: 0 auto; width: 100%; }
+  .view.active { display: block; }
+
+  /* FAB */
+  .fab { position: fixed; bottom: 24px; right: 24px; z-index: 200; }
+  .fab button { background: var(--purple); color: white; border: none; border-radius: 24px; padding: 14px 22px; font-size: 15px; font-weight: 500; cursor: pointer; box-shadow: 0 4px 16px rgba(83,74,183,0.35); display: flex; align-items: center; gap: 8px; transition: transform 0.15s, box-shadow 0.15s; }
+  .fab button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(83,74,183,0.45); }
+
+  /* PLAN CARDS */
+  .plan-card { background: var(--surface); border-radius: var(--radius); border: 0.5px solid var(--border); padding: 16px 18px; margin-bottom: 12px; }
+  .plan-card.votando-card { border-color: var(--purple-mid); border-width: 1.5px; }
+  .plan-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+  .plan-title { font-size: 16px; font-weight: 600; color: var(--text); flex: 1; }
+  .badge { font-size: 11px; padding: 3px 10px; border-radius: 20px; font-weight: 600; white-space: nowrap; }
+  .badge-propuesto { background: var(--amber-light); color: var(--amber); }
+  .badge-votando { background: var(--purple-light); color: var(--purple-dark); }
+  .badge-confirmado { background: #EAF3DE; color: #3B6D11; }
+  .badge-pasado { background: var(--bg); color: var(--text-3); }
+  .plan-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center; }
+  .meta-item { font-size: 12px; color: var(--text-2); display: flex; align-items: center; gap: 4px; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: var(--bg); color: var(--text-3); border: 0.5px solid var(--border); }
+  .plan-desc { font-size: 13px; color: var(--text-2); margin-bottom: 12px; line-height: 1.5; }
+
+  /* VOTE */
+  .vote-section { border-top: 0.5px solid var(--border); padding-top: 12px; margin-top: 4px; }
+  .vote-counts { display: flex; gap: 16px; margin-bottom: 8px; }
+  .vote-count { font-size: 12px; color: var(--text-3); display: flex; align-items: center; gap: 4px; }
+  .vote-count .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .vote-bar-wrap { background: var(--bg); border-radius: 20px; height: 5px; margin-bottom: 12px; overflow: hidden; }
+  .vote-bar-fill { height: 100%; border-radius: 20px; background: var(--purple); transition: width 0.4s; }
+  .vote-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .vbtn { padding: 7px 14px; border-radius: 20px; border: 0.5px solid var(--border-strong); font-size: 13px; cursor: pointer; background: var(--surface); color: var(--text-2); display: flex; align-items: center; gap: 5px; transition: all 0.15s; font-weight: 400; }
+  .vbtn:hover { border-color: var(--purple); color: var(--purple); }
+  .vbtn.active-voy { background: var(--purple-light); border-color: var(--purple-mid); color: var(--purple-dark); font-weight: 500; }
+  .vbtn.active-no { background: var(--red-light); border-color: #F09595; color: var(--red); font-weight: 500; }
+  .vbtn.active-quizas { background: var(--amber-light); border-color: #FAC775; color: var(--amber); font-weight: 500; }
+
+  /* COMENTARIOS */
+  .comments-section { border-top: 0.5px solid var(--border); padding-top: 12px; margin-top: 12px; }
+  .comment-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+  .comment-item { display: flex; gap: 8px; align-items: flex-start; }
+  .c-av { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: white; flex-shrink: 0; margin-top: 2px; }
+  .c-bubble { background: var(--bg); border-radius: 10px; padding: 7px 11px; font-size: 13px; color: var(--text); flex: 1; line-height: 1.4; }
+  .c-author { font-size: 11px; color: var(--text-3); font-weight: 500; margin-bottom: 2px; }
+  .comment-input-row { display: flex; gap: 8px; }
+  .comment-input-row input { flex: 1; padding: 8px 12px; border: 0.5px solid var(--border-strong); border-radius: 20px; font-size: 13px; outline: none; }
+  .comment-input-row input:focus { border-color: var(--purple); }
+  .send-btn { background: var(--purple); color: white; border: none; border-radius: 20px; padding: 8px 14px; font-size: 13px; cursor: pointer; font-weight: 500; }
+
+  /* SECTION LABELS */
+  .section-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-3); font-weight: 600; margin: 20px 0 10px; }
+
+  /* MODAL */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 300; align-items: center; justify-content: center; padding: 20px; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border-radius: var(--radius); width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; }
+  .modal-head { padding: 20px 20px 0; display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .modal-head h2 { font-size: 18px; font-weight: 600; }
+  .close-btn { background: none; border: none; font-size: 22px; color: var(--text-3); cursor: pointer; line-height: 1; }
+  .modal-body { padding: 0 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+  .field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-2); margin-bottom: 5px; }
+  .field input, .field textarea, .field select { width: 100%; padding: 10px 12px; border: 0.5px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 14px; outline: none; font-family: inherit; resize: vertical; background: var(--surface); color: var(--text); }
+  .field input:focus, .field textarea:focus, .field select:focus { border-color: var(--purple); }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .modal-actions { display: flex; gap: 10px; }
+  .btn-secondary { flex: 1; padding: 11px; background: var(--bg); border: 0.5px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 14px; cursor: pointer; color: var(--text-2); }
+  .btn-secondary:hover { background: var(--border); }
+  .modal-actions .btn-primary { flex: 2; }
+
+  /* CALENDARIO */
+  .cal-wrap { background: var(--surface); border-radius: var(--radius); border: 0.5px solid var(--border); padding: 20px; }
+  .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .cal-month-label { font-size: 16px; font-weight: 600; }
+  .cal-nav-btn { background: none; border: 0.5px solid var(--border-strong); border-radius: var(--radius-sm); width: 32px; height: 32px; cursor: pointer; font-size: 16px; color: var(--text-2); display: flex; align-items: center; justify-content: center; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+  .cal-day-label { font-size: 11px; color: var(--text-3); text-align: center; padding: 4px 0; font-weight: 600; }
+  .cal-day { min-height: 64px; border-radius: var(--radius-sm); padding: 5px; font-size: 12px; color: var(--text-2); position: relative; border: 0.5px solid transparent; cursor: pointer; transition: background 0.1s; }
+  .cal-day:hover { background: var(--bg); }
+  .cal-day.today { background: var(--purple-light); }
+  .cal-day.today .cal-day-num { color: var(--purple); font-weight: 700; }
+  .cal-day.other-month { opacity: 0.35; }
+  .cal-day-num { font-size: 12px; font-weight: 500; margin-bottom: 3px; }
+  .cal-dot { font-size: 10px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: var(--purple-light); color: var(--purple-dark); border-radius: 4px; padding: 1px 4px; margin-bottom: 2px; }
+  .cal-dot.confirmado { background: #EAF3DE; color: #3B6D11; }
+  .cal-dot.pasado { background: var(--bg); color: var(--text-3); }
+
+  /* STATS */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .stat-card { background: var(--surface); border-radius: var(--radius); border: 0.5px solid var(--border); padding: 16px; }
+  .stat-label { font-size: 11px; color: var(--text-3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+  .stat-num { font-size: 28px; font-weight: 700; color: var(--purple); }
+
+  /* EMPTY */
+  .empty { text-align: center; padding: 60px 20px; color: var(--text-3); }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; }
+  .empty p { font-size: 14px; }
+
+  /* LOADING */
+  .loading { text-align: center; padding: 40px; color: var(--text-3); font-size: 14px; }
+
+  /* TOAST */
+  #toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%) translateY(10px); background: #1a1a1a; color: white; padding: 10px 20px; border-radius: 20px; font-size: 13px; opacity: 0; transition: all 0.25s; z-index: 999; pointer-events: none; white-space: nowrap; }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* COLORES AVATAR */
+  .c0 { background: #534AB7; }
+  .c1 { background: #0F6E56; }
+  .c2 { background: #854F0B; }
+  .c3 { background: #993C1D; }
+  .c4 { background: #993556; }
+  .c5 { background: #185FA5; }
+  .c6 { background: #639922; }
+  .c7 { background: #BA7517; }
+
+  @media (max-width: 500px) {
+    .view { padding: 12px; }
+    .field-row { grid-template-columns: 1fr; }
+    .cal-day { min-height: 48px; }
+    .cal-dot { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">📅 Planit</div>
+    <p class="login-sub">El calendario de tu cuadrilla</p>
+    <input type="text" id="login-input" placeholder="Tu nombre (ej: Carlos)" maxlength="20" autocomplete="off">
+    <button class="btn-primary" onclick="entrar()">Entrar</button>
+    <p class="login-hint">Si ya existe tu nombre, entrarás con tu cuenta. Si es nuevo, se creará.</p>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="topbar">
+    <span class="logo">📅 Planit</span>
+    <div class="topbar-right">
+      <div class="user-chip">
+        <div class="user-av" id="topbar-av"></div>
+        <span class="user-name" id="topbar-name"></span>
+      </div>
+      <button class="logout-btn" onclick="cerrarSesion()">Salir</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="cambiarTab('planes')">🗂 Planes</div>
+    <div class="tab" onclick="cambiarTab('calendario')">📆 Calendario</div>
+    <div class="tab" onclick="cambiarTab('stats')">📊 Resumen</div>
+  </div>
+
+  <!-- PLANES -->
+  <div class="view active" id="view-planes">
+    <div id="planes-container"><div class="loading">Cargando planes...</div></div>
+  </div>
+
+  <!-- CALENDARIO -->
+  <div class="view" id="view-calendario">
+    <div class="cal-wrap">
+      <div class="cal-header">
+        <button class="cal-nav-btn" onclick="cambiarMes(-1)">‹</button>
+        <span class="cal-month-label" id="cal-label"></span>
+        <button class="cal-nav-btn" onclick="cambiarMes(1)">›</button>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="view" id="view-stats">
+    <div class="stats-grid" id="stats-grid"></div>
+    <div id="ranking-container"></div>
+  </div>
+</div>
+
+<!-- FAB -->
+<div class="fab" id="fab-btn" style="display:none">
+  <button onclick="abrirModal()">＋ Proponer plan</button>
+</div>
+
+<!-- MODAL NUEVO PLAN -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Proponer plan</h2>
+      <button class="close-btn" onclick="cerrarModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>¿Qué hacemos? *</label>
+        <input type="text" id="f-titulo" placeholder="Cena en casa de Marcos, Bowling..." maxlength="80">
+      </div>
+      <div class="field">
+        <label>Descripción (opcional)</label>
+        <textarea id="f-desc" rows="2" placeholder="Detalles del plan..."></textarea>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Fecha inicio *</label>
+          <input type="date" id="f-fecha">
+        </div>
+        <div class="field">
+          <label>Fecha fin (si dura varios días)</label>
+          <input type="date" id="f-fecha-fin">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Hora</label>
+          <input type="time" id="f-hora">
+        </div>
+        <div class="field">
+          <label>Tipo</label>
+          <select id="f-tipo">
+            <option>Comida</option>
+            <option>Fiesta</option>
+            <option>Deporte</option>
+            <option>Viaje</option>
+            <option>Peli / Serie</option>
+            <option>Ocio</option>
+            <option>Otro</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Lugar</label>
+        <input type="text" id="f-lugar" placeholder="Casa de Marcos, Cine Palacio...">
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="cerrarModal()">Cancelar</button>
+        <button class="btn-primary" onclick="crearPlan()">Proponer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+const SB_URL = 'https://nvdqcahlatmsjejbdhtf.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52ZHFjYWhsYXRtc2plamJkaHRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjA0NDcsImV4cCI6MjA5NzI5NjQ0N30.cA-zIR5favNhqs8wDtaIqYzVsN5K8KEbiiaDOjoDCwA';
+const STORAGE_KEY = 'planit_state_v1';
+
+let usuario = null;
+let todosLosPlanes = [];
+let todosLosVotos = [];
+let todosLosUsuarios = [];
+let todosLosComentarios = [];
+let calMes = new Date().getMonth();
+let calAnyo = new Date().getFullYear();
+
+let state = loadStoredState();
+todosLosPlanes = state.planes;
+todosLosVotos = state.votos;
+todosLosUsuarios = state.usuarios;
+todosLosComentarios = state.comentarios;
+
+const COLORES = ['#534AB7','#0F6E56','#854F0B','#993C1D','#993556','#185FA5','#639922','#BA7517'];
+
+function headers() {
+  return { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
+}
+
+function loadStoredState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { usuarios: [], planes: [], votos: [], comentarios: [] };
+    const parsed = JSON.parse(raw);
+    return {
+      usuarios: Array.isArray(parsed.usuarios) ? parsed.usuarios : [],
+      planes: Array.isArray(parsed.planes) ? parsed.planes : [],
+      votos: Array.isArray(parsed.votos) ? parsed.votos : [],
+      comentarios: Array.isArray(parsed.comentarios) ? parsed.comentarios : []
+    };
+  } catch {
+    return { usuarios: [], planes: [], votos: [], comentarios: [] };
+  }
+}
+
+function saveStoredState() {
+  state.usuarios = todosLosUsuarios;
+  state.planes = todosLosPlanes;
+  state.votos = todosLosVotos;
+  state.comentarios = todosLosComentarios;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function nextId(list) {
+  const ids = list.map(item => Number(item.id)).filter(Number.isFinite);
+  return String(Math.max(0, ...ids) + 1);
+}
+
+function getUserById(id) {
+  return todosLosUsuarios.find(u => String(u.id) === String(id));
+}
+
+function createLocalUser(nombre, avatarColor) {
+  const safeName = (nombre || 'Usuario').trim();
+  const nuevo = {
+    id: String(nextId(todosLosUsuarios)),
+    nombre: safeName,
+    avatar_color: avatarColor || COLORES[colorIdx(safeName)],
+    created_at: new Date().toISOString()
+  };
+  todosLosUsuarios.push(nuevo);
+  saveStoredState();
+  return nuevo;
+}
+
+async function sb(method, table, body, params='') {
+  if (method === 'GET' && table === 'usuarios') {
+    const match = params.match(/nombre=eq\.(.+?)(?:&|$)/);
+    if (match) {
+      const nombre = decodeURIComponent(match[1]).toLowerCase();
+      return todosLosUsuarios.filter(u => u.nombre.toLowerCase() === nombre);
+    }
+    return todosLosUsuarios.slice().sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
+  }
+
+  if (method === 'GET' && table === 'planes') {
+    return todosLosPlanes
+      .slice()
+      .sort((a, b) => (a.fecha_inicio || '').localeCompare(b.fecha_inicio || ''))
+      .map(plan => ({ ...plan, usuarios: getUserById(plan.creado_por) ? { nombre: getUserById(plan.creado_por).nombre } : null }));
+  }
+
+  if (method === 'GET' && table === 'votos') {
+    return todosLosVotos.map(voto => ({ ...voto, usuarios: getUserById(voto.usuario_id) ? { nombre: getUserById(voto.usuario_id).nombre } : null }));
+  }
+
+  if (method === 'GET' && table === 'comentarios') {
+    return todosLosComentarios
+      .slice()
+      .sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''))
+      .map(comentario => ({ ...comentario, usuarios: getUserById(comentario.usuario_id) ? { nombre: getUserById(comentario.usuario_id).nombre } : null }));
+  }
+
+  if (method === 'POST' && table === 'usuarios') {
+    return [createLocalUser(body?.nombre, body?.avatar_color)];
+  }
+
+  if (method === 'POST' && table === 'planes') {
+    const nuevo = { id: String(nextId(todosLosPlanes)), ...body, created_at: new Date().toISOString() };
+    todosLosPlanes.push(nuevo);
+    saveStoredState();
+    return [nuevo];
+  }
+
+  if (method === 'POST' && table === 'votos') {
+    const nuevo = { id: String(nextId(todosLosVotos)), ...body, created_at: new Date().toISOString() };
+    todosLosVotos.push(nuevo);
+    saveStoredState();
+    return [nuevo];
+  }
+
+  if (method === 'POST' && table === 'comentarios') {
+    const nuevo = { id: String(nextId(todosLosComentarios)), ...body, created_at: new Date().toISOString() };
+    todosLosComentarios.push(nuevo);
+    saveStoredState();
+    return [nuevo];
+  }
+
+  if (method === 'PATCH' && table === 'votos') {
+    const id = params.match(/id=eq\.([^&]+)/)?.[1];
+    const idx = todosLosVotos.findIndex(v => String(v.id) === String(id));
+    if (idx >= 0) { todosLosVotos[idx] = { ...todosLosVotos[idx], ...body }; saveStoredState(); return [todosLosVotos[idx]]; }
+    return [];
+  }
+
+  if (method === 'PATCH' && table === 'planes') {
+    const id = params.match(/id=eq\.([^&]+)/)?.[1];
+    const idx = todosLosPlanes.findIndex(p => String(p.id) === String(id));
+    if (idx >= 0) { todosLosPlanes[idx] = { ...todosLosPlanes[idx], ...body }; saveStoredState(); return [todosLosPlanes[idx]]; }
+    return [];
+  }
+
+  if (method === 'DELETE' && table === 'votos') {
+    const id = params.match(/id=eq\.([^&]+)/)?.[1];
+    const planId = params.match(/plan_id=eq\.([^&]+)/)?.[1];
+    if (id) {
+      todosLosVotos = todosLosVotos.filter(v => String(v.id) !== String(id));
+    } else if (planId) {
+      todosLosVotos = todosLosVotos.filter(v => String(v.plan_id) !== String(planId));
+    }
+    saveStoredState();
+    return null;
+  }
+
+  if (method === 'DELETE' && table === 'comentarios') {
+    const planId = params.match(/plan_id=eq\.([^&]+)/)?.[1];
+    if (planId) {
+      todosLosComentarios = todosLosComentarios.filter(c => String(c.plan_id) !== String(planId));
+    }
+    saveStoredState();
+    return null;
+  }
+
+  if (method === 'DELETE' && table === 'planes') {
+    const id = params.match(/id=eq\.([^&]+)/)?.[1];
+    if (id) {
+      todosLosPlanes = todosLosPlanes.filter(p => String(p.id) !== String(id));
+      todosLosVotos = todosLosVotos.filter(v => String(v.plan_id) !== String(id));
+      todosLosComentarios = todosLosComentarios.filter(c => String(c.plan_id) !== String(id));
+    }
+    saveStoredState();
+    return null;
+  }
+
+  return null;
+}
+
+function colorIdx(nombre) {
+  let h = 0;
+  for (let c of nombre) h = (h * 31 + c.charCodeAt(0)) % COLORES.length;
+  return h;
+}
+
+function avatar(nombre, size=28) {
+  const idx = colorIdx(nombre);
+  const bg = COLORES[idx];
+  const iniciales = nombre.slice(0,2).toUpperCase();
+  return `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${bg};display:flex;align-items:center;justify-content:center;font-size:${Math.floor(size*0.38)}px;font-weight:700;color:white;flex-shrink:0">${iniciales}</div>`;
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// LOGIN
+document.getElementById('login-input').addEventListener('keydown', e => { if(e.key==='Enter') entrar(); });
+
+async function entrar() {
+  const nombre = document.getElementById('login-input').value.trim();
+  if (!nombre) { toast('Escribe tu nombre'); return; }
+
+  try {
+    // buscar usuario existente
+    let data = await sb('GET', 'usuarios', null, `?nombre=eq.${encodeURIComponent(nombre)}&select=*`);
+    if (!data || data.length === 0) {
+      // crear nuevo
+      data = await sb('POST', 'usuarios', { nombre, avatar_color: COLORES[colorIdx(nombre)] });
+    }
+    usuario = Array.isArray(data) ? data[0] : data;
+    localStorage.setItem('planit_usuario', JSON.stringify(usuario));
+    iniciarApp();
+  } catch(e) {
+    toast('Error al entrar. Inténtalo de nuevo.');
+    console.error(e);
+  }
+}
+
+function cerrarSesion() {
+  localStorage.removeItem('planit_usuario');
+  usuario = null;
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('fab-btn').style.display = 'none';
+}
+
+async function iniciarApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  document.getElementById('fab-btn').style.display = 'block';
+
+  const av = document.getElementById('topbar-av');
+  av.textContent = usuario.nombre.slice(0,2).toUpperCase();
+  av.style.background = COLORES[colorIdx(usuario.nombre)];
+  document.getElementById('topbar-name').textContent = usuario.nombre;
+
+  await cargarTodo();
+}
+
+async function cargarTodo() {
+  try {
+    [todosLosPlanes, todosLosVotos, todosLosUsuarios, todosLosComentarios] = await Promise.all([
+      sb('GET', 'planes', null, '?select=*,usuarios(nombre)&order=fecha_inicio.asc'),
+      sb('GET', 'votos', null, '?select=*,usuarios(nombre)'),
+      sb('GET', 'usuarios', null, '?select=*&order=created_at.asc'),
+      sb('GET', 'comentarios', null, '?select=*,usuarios(nombre)&order=created_at.asc')
+    ]);
+    renderPlanes();
+    renderCalendario();
+    renderStats();
+  } catch(e) {
+    document.getElementById('planes-container').innerHTML = '<div class="empty"><p>Error cargando datos. Recarga la página.</p></div>';
+    console.error(e);
+  }
+}
+
+// TABS
+function cambiarTab(tab) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    t.classList.toggle('active', ['planes','calendario','stats'][i] === tab);
+  });
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById(`view-${tab}`).classList.add('active');
+  if (tab === 'calendario') renderCalendario();
+  if (tab === 'stats') renderStats();
+}
+
+// RENDER PLANES
+function renderPlanes() {
+  const container = document.getElementById('planes-container');
+  if (!todosLosPlanes.length) {
+    container.innerHTML = '<div class="empty"><div class="empty-icon">🎉</div><p>¡No hay planes todavía! Propón el primero.</p></div>';
+    return;
+  }
+
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const proximos = todosLosPlanes.filter(p => {
+    const f = new Date(p.fecha_fin || p.fecha_inicio);
+    return f >= hoy && p.estado !== 'pasado';
+  });
+  const pasados = todosLosPlanes.filter(p => {
+    const f = new Date(p.fecha_fin || p.fecha_inicio);
+    return f < hoy || p.estado === 'pasado';
+  });
+
+  let html = '';
+  if (proximos.length) {
+    const votando = proximos.filter(p => p.estado === 'votando' || p.estado === 'propuesto');
+    const confirmados = proximos.filter(p => p.estado === 'confirmado');
+
+    if (votando.length) {
+      html += '<div class="section-label">Votando / propuestos</div>';
+      votando.forEach(p => { html += renderPlanCard(p); });
+    }
+    if (confirmados.length) {
+      html += '<div class="section-label">Confirmados</div>';
+      confirmados.forEach(p => { html += renderPlanCard(p); });
+    }
+  }
+  if (pasados.length) {
+    html += '<div class="section-label">Planes pasados</div>';
+    pasados.slice(-5).reverse().forEach(p => { html += renderPlanCard(p, true); });
+  }
+
+  container.innerHTML = html;
+}
+
+function renderPlanCard(plan, esP=false) {
+  const votos = todosLosVotos.filter(v => v.plan_id === plan.id);
+  const miVoto = votos.find(v => v.usuario_id === usuario.id);
+  const voy = votos.filter(v => v.voto === 'voy').length;
+  const no = votos.filter(v => v.voto === 'no').length;
+  const quizas = votos.filter(v => v.voto === 'quizas').length;
+  const total = votos.length;
+  const pct = total > 0 ? Math.round((voy / total) * 100) : 0;
+
+  const coms = todosLosComentarios.filter(c => c.plan_id === plan.id);
+  const creador = plan.usuarios ? plan.usuarios.nombre : '?';
+
+  const fechaStr = formatFecha(plan.fecha_inicio, plan.fecha_fin);
+  const badgeClass = { propuesto:'badge-propuesto', votando:'badge-votando', confirmado:'badge-confirmado', pasado:'badge-pasado' }[plan.estado] || 'badge-propuesto';
+  const badgeText = { propuesto:'Propuesto', votando:'Votando', confirmado:'Confirmado ✓', pasado:'Pasado' }[plan.estado] || plan.estado;
+
+  const esCreador = plan.creado_por === usuario.id;
+
+  let voteHtml = '';
+  if (!esP) {
+    voteHtml = `
+    <div class="vote-section">
+      <div class="vote-counts">
+        <span class="vote-count"><span class="dot" style="background:#534AB7"></span>${voy} van</span>
+        <span class="vote-count"><span class="dot" style="background:#E24B4A"></span>${no} no pueden</span>
+        <span class="vote-count"><span class="dot" style="background:#EF9F27"></span>${quizas} quizás</span>
+      </div>
+      <div class="vote-bar-wrap"><div class="vote-bar-fill" style="width:${pct}%"></div></div>
+      <div class="vote-btns">
+        <button class="vbtn ${miVoto?.voto==='voy'?'active-voy':''}" onclick="votar('${plan.id}','voy')">✓ Voy</button>
+        <button class="vbtn ${miVoto?.voto==='no'?'active-no':''}" onclick="votar('${plan.id}','no')">✗ No puedo</button>
+        <button class="vbtn ${miVoto?.voto==='quizas'?'active-quizas':''}" onclick="votar('${plan.id}','quizas')">? Quizás</button>
+        ${esCreador && plan.estado !== 'confirmado' ? `<button class="vbtn" onclick="confirmarPlan('${plan.id}')" style="margin-left:auto;border-color:var(--purple);color:var(--purple)">✓ Confirmar</button>` : ''}
+        ${esCreador ? `<button class="vbtn" onclick="borrarPlan('${plan.id}')" style="color:var(--red);border-color:var(--red)">🗑</button>` : ''}
+      </div>
+    </div>`;
+  }
+
+  let comsHtml = '';
+  if (coms.length || !esP) {
+    comsHtml = `<div class="comments-section">
+      <div class="comment-list" id="coms-${plan.id}">`;
+    coms.forEach(c => {
+      const cn = c.usuarios?.nombre || '?';
+      comsHtml += `<div class="comment-item">
+        ${avatar(cn, 24)}
+        <div class="c-bubble"><div class="c-author">${cn}</div>${escHtml(c.texto)}</div>
+      </div>`;
+    });
+    comsHtml += `</div>`;
+    if (!esP) {
+      comsHtml += `<div class="comment-input-row">
+        <input type="text" placeholder="Comenta algo..." id="ci-${plan.id}" onkeydown="if(event.key==='Enter')enviarCom('${plan.id}')">
+        <button class="send-btn" onclick="enviarCom('${plan.id}')">↑</button>
+      </div>`;
+    }
+    comsHtml += `</div>`;
+  }
+
+  return `<div class="plan-card ${plan.estado==='votando'?'votando-card':''}" id="card-${plan.id}">
+    <div class="plan-head">
+      <div class="plan-title">${escHtml(plan.titulo)}</div>
+      <span class="badge ${badgeClass}">${badgeText}</span>
+    </div>
+    <div class="plan-meta">
+      <span class="meta-item">📅 ${fechaStr}</span>
+      ${plan.hora ? `<span class="meta-item">🕐 ${plan.hora}</span>` : ''}
+      ${plan.lugar ? `<span class="meta-item">📍 ${escHtml(plan.lugar)}</span>` : ''}
+      <span class="meta-item">👤 ${escHtml(creador)}</span>
+      <span class="tag">${escHtml(plan.tipo)}</span>
+    </div>
+    ${plan.descripcion ? `<div class="plan-desc">${escHtml(plan.descripcion)}</div>` : ''}
+    ${voteHtml}
+    ${comsHtml}
+  </div>`;
+}
+
+function formatFecha(ini, fin) {
+  const opciones = { day: 'numeric', month: 'short' };
+  const d1 = new Date(ini + 'T00:00:00');
+  let s = d1.toLocaleDateString('es-ES', opciones);
+  if (fin && fin !== ini) {
+    const d2 = new Date(fin + 'T00:00:00');
+    s += ' – ' + d2.toLocaleDateString('es-ES', opciones);
+  }
+  return s;
+}
+
+function escHtml(t) {
+  if (!t) return '';
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// VOTAR
+async function votar(planId, tipo) {
+  try {
+    const miVoto = todosLosVotos.find(v => v.plan_id === planId && v.usuario_id === usuario.id);
+    if (miVoto) {
+      if (miVoto.voto === tipo) {
+        await sb('DELETE', 'votos', null, `?id=eq.${miVoto.id}`);
+      } else {
+        await sb('PATCH', 'votos', { voto: tipo }, `?id=eq.${miVoto.id}`);
+      }
+    } else {
+      await sb('POST', 'votos', { plan_id: planId, usuario_id: usuario.id, voto: tipo });
+    }
+    await cargarTodo();
+  } catch(e) { toast('Error al votar'); console.error(e); }
+}
+
+async function confirmarPlan(planId) {
+  try {
+    await sb('PATCH', 'planes', { estado: 'confirmado' }, `?id=eq.${planId}`);
+    toast('Plan confirmado ✓');
+    await cargarTodo();
+  } catch(e) { toast('Error'); console.error(e); }
+}
+
+async function borrarPlan(planId) {
+  if (!confirm('¿Borrar este plan?')) return;
+  try {
+    await sb('DELETE', 'comentarios', null, `?plan_id=eq.${planId}`);
+    await sb('DELETE', 'votos', null, `?plan_id=eq.${planId}`);
+    await sb('DELETE', 'planes', null, `?id=eq.${planId}`);
+    toast('Plan borrado');
+    await cargarTodo();
+  } catch(e) { toast('Error al borrar'); console.error(e); }
+}
+
+// COMENTARIOS
+async function enviarCom(planId) {
+  const inp = document.getElementById(`ci-${planId}`);
+  const texto = inp.value.trim();
+  if (!texto) return;
+  try {
+    await sb('POST', 'comentarios', { plan_id: planId, usuario_id: usuario.id, texto });
+    inp.value = '';
+    await cargarTodo();
+  } catch(e) { toast('Error al comentar'); console.error(e); }
+}
+
+// MODAL
+function abrirModal() {
+  document.getElementById('modal').classList.add('open');
+  const hoy = new Date().toISOString().split('T')[0];
+  document.getElementById('f-fecha').value = hoy;
+  document.getElementById('f-fecha-fin').value = '';
+  document.getElementById('f-hora').value = '';
+  document.getElementById('f-titulo').value = '';
+  document.getElementById('f-desc').value = '';
+  document.getElementById('f-lugar').value = '';
+  document.getElementById('f-tipo').value = 'Comida';
+  setTimeout(() => document.getElementById('f-titulo').focus(), 100);
+}
+
+function cerrarModal() {
+  document.getElementById('modal').classList.remove('open');
+}
+
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal')) cerrarModal();
+});
+
+async function crearPlan() {
+  const titulo = document.getElementById('f-titulo').value.trim();
+  const fecha = document.getElementById('f-fecha').value;
+  if (!titulo) { toast('Escribe un título'); return; }
+  if (!fecha) { toast('Elige una fecha'); return; }
+
+  const body = {
+    titulo,
+    descripcion: document.getElementById('f-desc').value.trim() || null,
+    fecha_inicio: fecha,
+    fecha_fin: document.getElementById('f-fecha-fin').value || null,
+    hora: document.getElementById('f-hora').value || null,
+    lugar: document.getElementById('f-lugar').value.trim() || null,
+    tipo: document.getElementById('f-tipo').value,
+    estado: 'votando',
+    creado_por: usuario.id
+  };
+
+  try {
+    await sb('POST', 'planes', body);
+    cerrarModal();
+    toast('¡Plan propuesto! 🎉');
+    await cargarTodo();
+  } catch(e) { toast('Error al crear plan'); console.error(e); }
+}
+
+// CALENDARIO
+function cambiarMes(d) {
+  calMes += d;
+  if (calMes > 11) { calMes = 0; calAnyo++; }
+  if (calMes < 0) { calMes = 11; calAnyo--; }
+  renderCalendario();
+}
+
+function renderCalendario() {
+  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  document.getElementById('cal-label').textContent = `${meses[calMes]} ${calAnyo}`;
+
+  const primero = new Date(calAnyo, calMes, 1);
+  const ultimo = new Date(calAnyo, calMes + 1, 0);
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+
+  let dias = ['L','M','X','J','V','S','D'];
+  let html = dias.map(d => `<div class="cal-day-label">${d}</div>`).join('');
+
+  let startDay = primero.getDay();
+  startDay = startDay === 0 ? 6 : startDay - 1;
+
+  for (let i = 0; i < startDay; i++) {
+    const d = new Date(calAnyo, calMes, -startDay + i + 1);
+    html += `<div class="cal-day other-month"><div class="cal-day-num">${d.getDate()}</div></div>`;
+  }
+
+  for (let d = 1; d <= ultimo.getDate(); d++) {
+    const fecha = new Date(calAnyo, calMes, d);
+    const fechaStr = fecha.toISOString().split('T')[0];
+    const esHoy = fecha.getTime() === hoy.getTime();
+
+    const planesDelDia = todosLosPlanes.filter(p => {
+      const ini = p.fecha_inicio;
+      const fin = p.fecha_fin || p.fecha_inicio;
+      return fechaStr >= ini && fechaStr <= fin;
+    });
+
+    let dotsHtml = planesDelDia.slice(0,2).map(p =>
+      `<div class="cal-dot ${p.estado}">${escHtml(p.titulo.slice(0,12))}</div>`
+    ).join('');
+    if (planesDelDia.length > 2) dotsHtml += `<div class="cal-dot">+${planesDelDia.length-2} más</div>`;
+
+    html += `<div class="cal-day${esHoy?' today':''}"><div class="cal-day-num">${d}</div>${dotsHtml}</div>`;
+  }
+
+  document.getElementById('cal-grid').innerHTML = html;
+}
+
+// STATS
+function renderStats() {
+  const total = todosLosPlanes.length;
+  const confirmados = todosLosPlanes.filter(p => p.estado === 'confirmado').length;
+  const totalVotos = todosLosVotos.length;
+  const totalComs = todosLosComentarios.length;
+
+  document.getElementById('stats-grid').innerHTML = `
+    <div class="stat-card"><div class="stat-label">Planes totales</div><div class="stat-num">${total}</div></div>
+    <div class="stat-card"><div class="stat-label">Confirmados</div><div class="stat-num">${confirmados}</div></div>
+    <div class="stat-card"><div class="stat-label">Votos emitidos</div><div class="stat-num">${totalVotos}</div></div>
+    <div class="stat-card"><div class="stat-label">Comentarios</div><div class="stat-num">${totalComs}</div></div>
+  `;
+
+  // Ranking de participación
+  const ranking = todosLosUsuarios.map(u => {
+    const v = todosLosVotos.filter(x => x.usuario_id === u.id).length;
+    const c = todosLosComentarios.filter(x => x.usuario_id === u.id).length;
+    const p = todosLosPlanes.filter(x => x.creado_por === u.id).length;
+    return { ...u, puntos: v + c*2 + p*3 };
+  }).sort((a,b) => b.puntos - a.puntos);
+
+  let rankHtml = '<div class="section-label">Ranking de participación</div>';
+  ranking.forEach((u, i) => {
+    const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
+    rankHtml += `<div class="plan-card" style="display:flex;align-items:center;gap:12px;padding:12px 16px;margin-bottom:8px">
+      ${avatar(u.nombre, 36)}
+      <div style="flex:1"><div style="font-weight:600;font-size:14px">${medal} ${escHtml(u.nombre)}</div>
+      <div style="font-size:12px;color:var(--text-3)">${u.puntos} puntos de participación</div></div>
+    </div>`;
+  });
+  document.getElementById('ranking-container').innerHTML = rankHtml;
+}
+
+// AUTO LOGIN
+const saved = localStorage.getItem('planit_usuario');
+if (saved) {
+  try {
+    usuario = JSON.parse(saved);
+    iniciarApp();
+  } catch(e) { localStorage.removeItem('planit_usuario'); }
+}
+</script>
+</body>
+</html>
