@@ -193,6 +193,7 @@
     <p class="login-sub">El calendario de tu cuadrilla</p>
     <input type="text" id="login-input" placeholder="Tu nombre (ej: Carlos)" maxlength="20" autocomplete="off">
     <button class="btn-primary" onclick="entrar()">Entrar</button>
+    <button class="btn-primary" style="margin-top:8px;background:#24292e;" onclick="githubLogin()">Entrar con GitHub</button>
     <p class="login-hint">Si ya existe tu nombre, entrarás con tu cuenta. Si es nuevo, se creará.</p>
   </div>
 </div>
@@ -542,6 +543,10 @@ function cerrarSesion() {
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('fab-btn').style.display = 'none';
 }
+
+// Firebase GitHub auth (client-side)
+// Loads modular Firebase SDK via CDN module script below; functions exposed to window
+
 
 async function iniciarApp() {
   document.getElementById('login-screen').style.display = 'none';
@@ -904,6 +909,50 @@ if (saved) {
     iniciarApp();
   } catch(e) { localStorage.removeItem('planit_usuario'); }
 }
+</script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+  import { getAuth, signInWithPopup, GithubAuthProvider, signOut as fbSignOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDSxrI7ziNMZrTj_3PXE1DJO5S0CMQGoH0",
+    authDomain: "planes-a194c.firebaseapp.com",
+    projectId: "planes-a194c",
+    storageBucket: "planes-a194c.firebasestorage.app",
+    messagingSenderId: "977130956141",
+    appId: "1:977130956141:web:f68669e4a26e4c6e666664",
+    measurementId: "G-TNSHWFYCYX"
+  };
+
+  const fbApp = initializeApp(firebaseConfig);
+  const fbAuth = getAuth(fbApp);
+  const githubProvider = new GithubAuthProvider();
+
+  async function githubLogin() {
+    try {
+      const result = await signInWithPopup(fbAuth, githubProvider);
+      const fbUser = result.user;
+      handleFirebaseUser(fbUser);
+    } catch (e) { toast('Error al entrar con GitHub'); console.error(e); }
+  }
+
+  function handleFirebaseUser(fbUser) {
+    const nombre = fbUser.displayName || fbUser.email || ('user_' + (fbUser.uid || '').slice(0,6));
+    let existing = todosLosUsuarios.find(u => u.nombre === nombre);
+    if (!existing) {
+      const nuevo = createLocalUser(nombre, null);
+      usuario = nuevo;
+    } else {
+      usuario = existing;
+    }
+    guardarUsuarioEnSesion(usuario);
+    iniciarApp();
+  }
+
+  onAuthStateChanged(fbAuth, fbUser => { if (fbUser) handleFirebaseUser(fbUser); });
+
+  window.githubLogin = githubLogin;
+  window.githubSignOut = async () => { try { await fbSignOut(fbAuth); } catch(e){}; cerrarSesion(); };
 </script>
 </body>
 </html>
