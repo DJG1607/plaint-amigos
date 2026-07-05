@@ -346,6 +346,12 @@ let todosLosDisponibilidades = [];
 let calMes = new Date().getMonth();
 let calAnyo = new Date().getFullYear();
 
+let planesUnsubscribe = null;
+let votosUnsubscribe = null;
+let comentariosUnsubscribe = null;
+let usuariosUnsubscribe = null;
+let disponibilidadesUnsubscribe = null;
+
 let state = loadStoredState();
 todosLosPlanes = state.planes;
 todosLosVotos = state.votos;
@@ -421,101 +427,78 @@ function createLocalUser(nombre, avatarColor) {
 }
 
 async function sb(method, table, body, params='') {
+  const api = window.firestoreApi;
+  const db = window.db;
+  if (!api || !db) throw new Error('Firestore no inicializado');
+  const { collection, query, where, orderBy, onSnapshot, addDoc, doc, getDocs, updateDoc, deleteDoc, limit } = api;
+  const tableCol = collection(db, table);
+
+  const getDocsArray = async (queryRef) => {
+    const snap = await getDocs(queryRef);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  };
+
+  const getId = () => params.match(/id=eq\.([^&]+)/)?.[1];
+  const getPlanId = () => params.match(/plan_id=eq\.([^&]+)/)?.[1];
+  const getNombreMatch = () => params.match(/nombre=eq\.([^&]+)/)?.[1];
+
   if (method === 'GET' && table === 'usuarios') {
-    const match = params.match(/nombre=eq\.(.+?)(?:&|$)/);
+    const match = getNombreMatch();
     if (match) {
-      const nombre = decodeURIComponent(match[1]).toLowerCase();
-      return todosLosUsuarios.filter(u => u.nombre.toLowerCase() === nombre);
+      const nombre = decodeURIComponent(match);
+      const q = query(tableCol, where('nombre', '==', nombre), limit(1));
+      return await getDocsArray(q);
     }
-    return todosLosUsuarios.slice().sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
+    return await getDocsArray(query(tableCol, orderBy('created_at', 'asc')));
   }
 
   if (method === 'GET' && table === 'planes') {
-    return todosLosPlanes
-      .slice()
-      .sort((a, b) => (a.fecha_inicio || '').localeCompare(b.fecha_inicio || ''))
-      .map(plan => ({ ...plan, usuarios: getUserById(plan.creado_por) ? { nombre: getUserById(plan.creado_por).nombre } : null }));
+    return await getDocsArray(query(tableCol, orderBy('fecha_inicio', 'asc')));
   }
 
   if (method === 'GET' && table === 'votos') {
-    return todosLosVotos.map(voto => ({ ...voto, usuarios: getUserById(voto.usuario_id) ? { nombre: getUserById(voto.usuario_id).nombre } : null }));
+    return await getDocsArray(tableCol);
   }
 
   if (method === 'GET' && table === 'comentarios') {
-    return todosLosComentarios
-      .slice()
-      .sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''))
-      .map(comentario => ({ ...comentario, usuarios: getUserById(comentario.usuario_id) ? { nombre: getUserById(comentario.usuario_id).nombre } : null }));
+    return await getDocsArray(query(tableCol, orderBy('created_at', 'asc')));
   }
 
-  if (method === 'POST' && table === 'usuarios') {
-    return [createLocalUser(body?.nombre, body?.avatar_color)];
+  if (method === 'GET' && table === 'disponibilidades') {
+    return await getDocsArray(query(tableCol, orderBy('fecha', 'asc')));
   }
 
-  if (method === 'POST' && table === 'planes') {
-    const nuevo = { id: String(nextId(todosLosPlanes)), ...body, created_at: new Date().toISOString() };
-    todosLosPlanes.push(nuevo);
-    saveStoredState();
-    return [nuevo];
+  if (method === 'POST') {
+    const now = new Date().toISOString();
+    const payload = { ...body, created_at: now };
+    const ref = await addDoc(tableCol, payload);
+    return [{ id: ref.id, ...payload }];
   }
 
-  if (method === 'POST' && table === 'votos') {
-    const nuevo = { id: String(nextId(todosLosVotos)), ...body, created_at: new Date().toISOString() };
-    todosLosVotos.push(nuevo);
-    saveStoredState();
-    return [nuevo];
+  if (method === 'PATCH') {
+    const id = getId();
+    if (!id) return [];
+    const ref = doc(db, table, id);
+    await updateDoc(ref, body);
+    return [{ id, ...body }];
   }
 
-  if (method === 'POST' && table === 'comentarios') {
-    const nuevo = { id: String(nextId(todosLosComentarios)), ...body, created_at: new Date().toISOString() };
-    todosLosComentarios.push(nuevo);
-    saveStoredState();
-    return [nuevo];
-  }
-
-  if (method === 'PATCH' && table === 'votos') {
-    const id = params.match(/id=eq\.([^&]+)/)?.[1];
-    const idx = todosLosVotos.findIndex(v => String(v.id) === String(id));
-    if (idx >= 0) { todosLosVotos[idx] = { ...todosLosVotos[idx], ...body }; saveStoredState(); return [todosLosVotos[idx]]; }
-    return [];
-  }
-
-  if (method === 'PATCH' && table === 'planes') {
-    const id = params.match(/id=eq\.([^&]+)/)?.[1];
-    const idx = todosLosPlanes.findIndex(p => String(p.id) === String(id));
-    if (idx >= 0) { todosLosPlanes[idx] = { ...todosLosPlanes[idx], ...body }; saveStoredState(); return [todosLosPlanes[idx]]; }
-    return [];
-  }
-
-  if (method === 'DELETE' && table === 'votos') {
-    const id = params.match(/id=eq\.([^&]+)/)?.[1];
-    const planId = params.match(/plan_id=eq\.([^&]+)/)?.[1];
+  if (method === 'DELETE') {
+    const id = getId();
+    const planId = getPlanId();
     if (id) {
-      todosLosVotos = todosLosVotos.filter(v => String(v.id) !== String(id));
+      await deleteDoc(doc(db, table, id));
+      if (table === 'planes') {
+        const votesSnap = await getDocs(query(collection(db, 'votos'), where('plan_id', '==', id)));
+        await Promise.all(votesSnap.docs.map(d => deleteDoc(doc(db, 'votos', d.id))));
+        const commentsSnap = await getDocs(query(collection(db, 'comentarios'), where('plan_id', '==', id)));
+        await Promise.all(commentsSnap.docs.map(d => deleteDoc(doc(db, 'comentarios', d.id))));
+      }
     } else if (planId) {
-      todosLosVotos = todosLosVotos.filter(v => String(v.plan_id) !== String(planId));
+      const q = query(tableCol, where('plan_id', '==', planId));
+      const snap = await getDocs(q);
+      await Promise.all(snap.docs.map(d => deleteDoc(doc(db, table, d.id))));
     }
-    saveStoredState();
-    return null;
-  }
-
-  if (method === 'DELETE' && table === 'comentarios') {
-    const planId = params.match(/plan_id=eq\.([^&]+)/)?.[1];
-    if (planId) {
-      todosLosComentarios = todosLosComentarios.filter(c => String(c.plan_id) !== String(planId));
-    }
-    saveStoredState();
-    return null;
-  }
-
-  if (method === 'DELETE' && table === 'planes') {
-    const id = params.match(/id=eq\.([^&]+)/)?.[1];
-    if (id) {
-      todosLosPlanes = todosLosPlanes.filter(p => String(p.id) !== String(id));
-      todosLosVotos = todosLosVotos.filter(v => String(v.plan_id) !== String(id));
-      todosLosComentarios = todosLosComentarios.filter(c => String(c.plan_id) !== String(id));
-    }
-    saveStoredState();
     return null;
   }
 
@@ -607,24 +590,59 @@ async function iniciarApp() {
 
 async function cargarTodo() {
   try {
-    const disponibilidadRemota = await sb('GET', 'disponibilidades', null, '?select=*&order=fecha.asc').catch(() => null);
-    [todosLosPlanes, todosLosVotos, todosLosUsuarios, todosLosComentarios] = await Promise.all([
-      sb('GET', 'planes', null, '?select=*,usuarios(nombre)&order=fecha_inicio.asc'),
-      sb('GET', 'votos', null, '?select=*,usuarios(nombre)'),
-      sb('GET', 'usuarios', null, '?select=*&order=created_at.asc'),
-      sb('GET', 'comentarios', null, '?select=*,usuarios(nombre)&order=created_at.asc')
-    ]);
-    todosLosDisponibilidades = Array.isArray(disponibilidadRemota) && disponibilidadRemota.length
-      ? disponibilidadRemota
-      : (state.disponibilidades || []);
-    saveStoredState();
-    renderPlanes();
-    renderCalendario();
-    renderStats();
+    setupRealtimeListeners();
   } catch(e) {
     document.getElementById('planes-container').innerHTML = '<div class="empty"><p>Error cargando datos. Recarga la página.</p></div>';
     console.error(e);
   }
+}
+
+function setupRealtimeListeners() {
+  const api = window.firestoreApi;
+  const db = window.db;
+  if (!api || !db) throw new Error('Firestore no inicializado');
+  const { collection, query, where, orderBy, onSnapshot } = api;
+
+  if (usuariosUnsubscribe) usuariosUnsubscribe();
+  if (planesUnsubscribe) planesUnsubscribe();
+  if (votosUnsubscribe) votosUnsubscribe();
+  if (comentariosUnsubscribe) comentariosUnsubscribe();
+  if (disponibilidadesUnsubscribe) disponibilidadesUnsubscribe();
+
+  usuariosUnsubscribe = onSnapshot(query(collection(db, 'usuarios'), orderBy('created_at', 'asc')), snap => {
+    todosLosUsuarios = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    saveStoredState();
+    renderPlanes();
+    renderCalendario();
+    renderStats();
+  });
+
+  planesUnsubscribe = onSnapshot(query(collection(db, 'planes'), orderBy('fecha_inicio', 'asc')), snap => {
+    todosLosPlanes = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    saveStoredState();
+    renderPlanes();
+    renderCalendario();
+    renderStats();
+  });
+
+  votosUnsubscribe = onSnapshot(collection(db, 'votos'), snap => {
+    todosLosVotos = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    saveStoredState();
+    renderPlanes();
+    renderStats();
+  });
+
+  comentariosUnsubscribe = onSnapshot(query(collection(db, 'comentarios'), orderBy('created_at', 'asc')), snap => {
+    todosLosComentarios = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    saveStoredState();
+    renderPlanes();
+  });
+
+  disponibilidadesUnsubscribe = onSnapshot(query(collection(db, 'disponibilidades'), orderBy('fecha', 'asc')), snap => {
+    todosLosDisponibilidades = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    saveStoredState();
+    renderCalendario();
+  });
 }
 
 // TABS
@@ -1015,6 +1033,7 @@ if (saved) {
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
   import { getAuth, signInWithPopup, GoogleAuthProvider, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut as fbSignOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+  import { getFirestore, collection, query, where, orderBy, onSnapshot, addDoc, doc, getDocs, updateDoc, deleteDoc, limit } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyDSxrI7ziNMZrTj_3PXE1DJO5S0CMQGoH0",
@@ -1028,6 +1047,9 @@ if (saved) {
 
   const fbApp = initializeApp(firebaseConfig);
   const fbAuth = getAuth(fbApp);
+  const db = getFirestore(fbApp);
+  window.db = db;
+  window.firestoreApi = { collection, query, where, orderBy, onSnapshot, addDoc, doc, getDocs, updateDoc, deleteDoc, limit };
   const googleProvider = new GoogleAuthProvider();
 
   async function googleLogin() {
@@ -1057,11 +1079,15 @@ if (saved) {
     } catch (e) { toast('Error entrando con correo'); console.error(e); }
   }
 
-  function handleFirebaseUser(fbUser) {
+  async function handleFirebaseUser(fbUser) {
     const nombre = fbUser.displayName || fbUser.email || ('user_' + (fbUser.uid || '').slice(0,6));
     let existing = todosLosUsuarios.find(u => u.nombre === nombre);
     if (!existing) {
-      const nuevo = createLocalUser(nombre, null);
+      const data = await sb('GET', 'usuarios', null, `?nombre=eq.${encodeURIComponent(nombre)}&select=*`).catch(() => []);
+      existing = Array.isArray(data) ? data[0] : data;
+    }
+    if (!existing) {
+      const [nuevo] = await sb('POST', 'usuarios', { nombre, avatar_color: COLORES[colorIdx(nombre)] });
       usuario = nuevo;
     } else {
       usuario = existing;
