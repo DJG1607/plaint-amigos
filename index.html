@@ -75,6 +75,17 @@
   .tab.active { color: var(--purple); border-bottom-color: var(--purple); font-weight: 500; }
   .tab:hover:not(.active) { color: var(--text-2); }
 
+  .group-bar { display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--surface); border-bottom:0.5px solid var(--border); padding:12px 20px; }
+  .group-info { min-width:0; }
+  .group-label { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-3); font-weight:600; }
+  .group-name { font-size:14px; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .group-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .group-btn { border:none; background:var(--purple-light); color:var(--purple-dark); padding:8px 12px; border-radius:999px; font-size:12px; font-weight:600; cursor:pointer; }
+  .group-list { display:flex; flex-wrap:wrap; gap:8px; padding:10px 20px 0; }
+  .group-pill { border:0.5px solid var(--border); background:var(--surface); color:var(--text-2); padding:7px 10px; border-radius:999px; font-size:12px; cursor:pointer; }
+  .group-pill.active { background:var(--purple-light); color:var(--purple-dark); border-color:var(--purple-mid); }
+  .group-empty { font-size:12px; color:var(--text-3); padding:6px 0; }
+
   /* VIEWS */
   .view { display: none; padding: 20px; max-width: 700px; margin: 0 auto; width: 100%; }
   .view.active { display: block; }
@@ -242,6 +253,17 @@
     <div class="tab" onclick="cambiarTab('stats')">📊 Resumen</div>
   </div>
 
+  <div class="group-bar">
+    <div class="group-info">
+      <div class="group-label">Grupo activo</div>
+      <div class="group-name" id="active-group-name">Cargando…</div>
+    </div>
+    <div class="group-actions">
+      <button class="group-btn" onclick="abrirModalGrupo()">＋ Crear grupo</button>
+    </div>
+  </div>
+  <div class="group-list" id="group-list"></div>
+
   <!-- PLANES -->
   <div class="view active" id="view-planes">
     <div id="planes-container"><div class="loading">Cargando planes...</div></div>
@@ -329,6 +351,30 @@
   </div>
 </div>
 
+<!-- MODAL GRUPO -->
+<div class="modal-overlay" id="group-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Crear grupo</h2>
+      <button class="close-btn" onclick="cerrarModalGrupo()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Nombre del grupo *</label>
+        <input type="text" id="g-nombre" placeholder="Vacaciones, trabajo, amigos..." maxlength="40">
+      </div>
+      <div class="field">
+        <label>Descripción</label>
+        <textarea id="g-desc" rows="2" placeholder="Qué tipo de planes se hacen aquí..."></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="cerrarModalGrupo()">Cancelar</button>
+        <button class="btn-primary" onclick="crearGrupo()">Crear grupo</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div id="toast"></div>
 
@@ -343,6 +389,8 @@ let todosLosVotos = [];
 let todosLosUsuarios = [];
 let todosLosComentarios = [];
 let todosLosDisponibilidades = [];
+let grupos = [];
+let activeGroupId = null;
 let calMes = new Date().getMonth();
 let calAnyo = new Date().getFullYear();
 
@@ -351,6 +399,7 @@ let votosUnsubscribe = null;
 let comentariosUnsubscribe = null;
 let usuariosUnsubscribe = null;
 let disponibilidadesUnsubscribe = null;
+let gruposUnsubscribe = null;
 
 let state = loadStoredState();
 todosLosPlanes = state.planes;
@@ -358,6 +407,7 @@ todosLosVotos = state.votos;
 todosLosUsuarios = state.usuarios;
 todosLosComentarios = state.comentarios;
 todosLosDisponibilidades = state.disponibilidades;
+activeGroupId = state.activeGroupId || null;
 
 const COLORES = ['#534AB7','#0F6E56','#854F0B','#993C1D','#993556','#185FA5','#639922','#BA7517'];
 
@@ -368,17 +418,18 @@ function headers() {
 function loadStoredState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { usuarios: [], planes: [], votos: [], comentarios: [], disponibilidades: [] };
+    if (!raw) return { usuarios: [], planes: [], votos: [], comentarios: [], disponibilidades: [], activeGroupId: null };
     const parsed = JSON.parse(raw);
     return {
       usuarios: Array.isArray(parsed.usuarios) ? parsed.usuarios : [],
       planes: Array.isArray(parsed.planes) ? parsed.planes : [],
       votos: Array.isArray(parsed.votos) ? parsed.votos : [],
       comentarios: Array.isArray(parsed.comentarios) ? parsed.comentarios : [],
-      disponibilidades: Array.isArray(parsed.disponibilidades) ? parsed.disponibilidades : []
+      disponibilidades: Array.isArray(parsed.disponibilidades) ? parsed.disponibilidades : [],
+      activeGroupId: parsed.activeGroupId || null
     };
   } catch {
-    return { usuarios: [], planes: [], votos: [], comentarios: [], disponibilidades: [] };
+    return { usuarios: [], planes: [], votos: [], comentarios: [], disponibilidades: [], activeGroupId: null };
   }
 }
 
@@ -388,6 +439,7 @@ function saveStoredState() {
   state.votos = todosLosVotos;
   state.comentarios = todosLosComentarios;
   state.disponibilidades = todosLosDisponibilidades;
+  state.activeGroupId = activeGroupId;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
@@ -441,6 +493,10 @@ async function sb(method, table, body, params='') {
   const getId = () => params.match(/id=eq\.([^&]+)/)?.[1];
   const getPlanId = () => params.match(/plan_id=eq\.([^&]+)/)?.[1];
   const getNombreMatch = () => params.match(/nombre=eq\.([^&]+)/)?.[1];
+
+  if (method === 'GET' && table === 'grupos') {
+    return await getDocsArray(query(tableCol, orderBy('created_at', 'asc')));
+  }
 
   if (method === 'GET' && table === 'usuarios') {
     const match = getNombreMatch();
@@ -525,6 +581,57 @@ function toast(msg) {
   setTimeout(() => el.classList.remove('show'), 2500);
 }
 
+function renderGroupBar() {
+  const active = grupos.find(g => g.id === activeGroupId) || grupos[0];
+  const nameEl = document.getElementById('active-group-name');
+  if (nameEl) nameEl.textContent = active ? active.nombre : 'Sin grupos';
+  const listEl = document.getElementById('group-list');
+  if (!listEl) return;
+  if (!grupos.length) {
+    listEl.innerHTML = '<div class="group-empty">Crea un grupo para separar tus planes y disponibilidad.</div>';
+    return;
+  }
+  listEl.innerHTML = grupos.map(g => `<button class="group-pill ${g.id === activeGroupId ? 'active' : ''}" onclick="seleccionarGrupo('${g.id}')">${escHtml(g.nombre)}</button>`).join('');
+}
+
+window.seleccionarGrupo = function(id) {
+  activeGroupId = id;
+  saveStoredState();
+  renderGroupBar();
+  setupRealtimeListeners();
+};
+
+window.abrirModalGrupo = function() {
+  const modal = document.getElementById('group-modal');
+  if (modal) {
+    modal.classList.add('open');
+    setTimeout(() => document.getElementById('g-nombre')?.focus(), 100);
+  }
+};
+
+window.cerrarModalGrupo = function() {
+  const modal = document.getElementById('group-modal');
+  if (modal) modal.classList.remove('open');
+};
+
+window.crearGrupo = async function() {
+  const nombre = document.getElementById('g-nombre').value.trim();
+  const desc = document.getElementById('g-desc').value.trim();
+  if (!nombre) { toast('Pon un nombre para el grupo'); return; }
+  try {
+    const [nuevo] = await sb('POST', 'grupos', { nombre, descripcion: desc || null, creado_por: usuario.id });
+    activeGroupId = nuevo.id;
+    saveStoredState();
+    renderGroupBar();
+    setupRealtimeListeners();
+    cerrarModalGrupo();
+    toast(`Grupo "${nombre}" creado`);
+  } catch (e) {
+    console.error(e);
+    toast('No se pudo crear el grupo');
+  }
+};
+
 // LOGIN
 const loginInput = document.getElementById('login-input');
 if (loginInput) {
@@ -590,17 +697,41 @@ async function iniciarApp() {
 
 async function cargarTodo() {
   try {
-    setupRealtimeListeners();
+    await cargarGrupos();
   } catch(e) {
     document.getElementById('planes-container').innerHTML = '<div class="empty"><p>Error cargando datos. Recarga la página.</p></div>';
     console.error(e);
   }
 }
 
+async function cargarGrupos() {
+  const api = window.firestoreApi;
+  const db = window.db;
+  if (!api || !db) return;
+  const { collection, query, orderBy, onSnapshot } = api;
+
+  if (gruposUnsubscribe) gruposUnsubscribe();
+  gruposUnsubscribe = onSnapshot(query(collection(db, 'grupos'), orderBy('created_at', 'asc')), async snap => {
+    grupos = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    if (!activeGroupId && grupos.length) activeGroupId = grupos[0].id;
+    if (activeGroupId && !grupos.some(g => g.id === activeGroupId)) activeGroupId = grupos[0]?.id || null;
+    if (!grupos.length && usuario) {
+      const [nuevo] = await sb('POST', 'grupos', { nombre: 'Mi grupo', descripcion: 'Grupo principal', creado_por: usuario.id });
+      if (nuevo) {
+        grupos = [nuevo];
+        activeGroupId = nuevo.id;
+      }
+    }
+    saveStoredState();
+    renderGroupBar();
+    setupRealtimeListeners();
+  });
+}
+
 function setupRealtimeListeners() {
   const api = window.firestoreApi;
   const db = window.db;
-  if (!api || !db) throw new Error('Firestore no inicializado');
+  if (!api || !db) return;
   const { collection, query, where, orderBy, onSnapshot } = api;
 
   if (usuariosUnsubscribe) usuariosUnsubscribe();
@@ -608,6 +739,19 @@ function setupRealtimeListeners() {
   if (votosUnsubscribe) votosUnsubscribe();
   if (comentariosUnsubscribe) comentariosUnsubscribe();
   if (disponibilidadesUnsubscribe) disponibilidadesUnsubscribe();
+
+  const planesQuery = activeGroupId
+    ? query(collection(db, 'planes'), where('grupo_id', '==', activeGroupId), orderBy('fecha_inicio', 'asc'))
+    : query(collection(db, 'planes'), orderBy('fecha_inicio', 'asc'));
+  const votosQuery = activeGroupId
+    ? query(collection(db, 'votos'), where('grupo_id', '==', activeGroupId))
+    : collection(db, 'votos');
+  const comentariosQuery = activeGroupId
+    ? query(collection(db, 'comentarios'), where('grupo_id', '==', activeGroupId), orderBy('created_at', 'asc'))
+    : query(collection(db, 'comentarios'), orderBy('created_at', 'asc'));
+  const disponibilidadesQuery = activeGroupId
+    ? query(collection(db, 'disponibilidades'), where('grupo_id', '==', activeGroupId), orderBy('fecha', 'asc'))
+    : query(collection(db, 'disponibilidades'), orderBy('fecha', 'asc'));
 
   usuariosUnsubscribe = onSnapshot(query(collection(db, 'usuarios'), orderBy('created_at', 'asc')), snap => {
     todosLosUsuarios = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -617,7 +761,7 @@ function setupRealtimeListeners() {
     renderStats();
   });
 
-  planesUnsubscribe = onSnapshot(query(collection(db, 'planes'), orderBy('fecha_inicio', 'asc')), snap => {
+  planesUnsubscribe = onSnapshot(planesQuery, snap => {
     todosLosPlanes = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     saveStoredState();
     renderPlanes();
@@ -625,20 +769,20 @@ function setupRealtimeListeners() {
     renderStats();
   });
 
-  votosUnsubscribe = onSnapshot(collection(db, 'votos'), snap => {
+  votosUnsubscribe = onSnapshot(votosQuery, snap => {
     todosLosVotos = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     saveStoredState();
     renderPlanes();
     renderStats();
   });
 
-  comentariosUnsubscribe = onSnapshot(query(collection(db, 'comentarios'), orderBy('created_at', 'asc')), snap => {
+  comentariosUnsubscribe = onSnapshot(comentariosQuery, snap => {
     todosLosComentarios = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     saveStoredState();
     renderPlanes();
   });
 
-  disponibilidadesUnsubscribe = onSnapshot(query(collection(db, 'disponibilidades'), orderBy('fecha', 'asc')), snap => {
+  disponibilidadesUnsubscribe = onSnapshot(disponibilidadesQuery, snap => {
     todosLosDisponibilidades = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     saveStoredState();
     renderCalendario();
@@ -800,7 +944,7 @@ async function votar(planId, tipo) {
         await sb('PATCH', 'votos', { voto: tipo }, `?id=eq.${miVoto.id}`);
       }
     } else {
-      await sb('POST', 'votos', { plan_id: planId, usuario_id: usuario.id, voto: tipo });
+      await sb('POST', 'votos', { plan_id: planId, usuario_id: usuario.id, voto: tipo, grupo_id: activeGroupId });
     }
     await cargarTodo();
   } catch(e) { toast('Error al votar'); console.error(e); }
@@ -831,7 +975,7 @@ async function enviarCom(planId) {
   const texto = inp.value.trim();
   if (!texto) return;
   try {
-    await sb('POST', 'comentarios', { plan_id: planId, usuario_id: usuario.id, texto });
+    await sb('POST', 'comentarios', { plan_id: planId, usuario_id: usuario.id, texto, grupo_id: activeGroupId });
     inp.value = '';
     await cargarTodo();
   } catch(e) { toast('Error al comentar'); console.error(e); }
@@ -858,6 +1002,9 @@ function cerrarModal() {
 document.getElementById('modal').addEventListener('click', e => {
   if (e.target === document.getElementById('modal')) cerrarModal();
 });
+document.getElementById('group-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('group-modal')) cerrarModalGrupo();
+});
 
 async function crearPlan() {
   const titulo = document.getElementById('f-titulo').value.trim();
@@ -878,7 +1025,7 @@ async function crearPlan() {
   };
 
   try {
-    await sb('POST', 'planes', body);
+    await sb('POST', 'planes', { ...body, grupo_id: activeGroupId });
     cerrarModal();
     toast('¡Plan propuesto! 🎉');
     await cargarTodo();
@@ -914,7 +1061,7 @@ async function marcarDia(fechaStr) {
     } else if (actual?.id) {
       await sb('PATCH', 'disponibilidades', { estado: siguiente }, `?id=eq.${actual.id}`).catch(() => {});
     } else {
-      await sb('POST', 'disponibilidades', { fecha: fechaStr, usuario_id: usuario.id, estado: siguiente }).catch(() => {});
+      await sb('POST', 'disponibilidades', { fecha: fechaStr, usuario_id: usuario.id, estado: siguiente, grupo_id: activeGroupId }).catch(() => {});
     }
   } catch (e) {
     console.warn('No se pudo sincronizar disponibilidad', e);
